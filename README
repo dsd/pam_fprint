@@ -1,0 +1,23 @@
+pam_fprint
+==========
+
+Homepage: http://www.reactivated.net/fprint/wiki/Pam_fprint
+
+pam_fprint is a PAM module which uses libfprint's fingerprint verification
+functionality to implement a fingerprint-based login system.
+
+Before you can use pam_fprint to login, you must have enrolled at least one
+finger on the device that you wish to use (or a compatible one). Currently
+the easiest way to do this is to use the "enroll" example program found
+in the libfprint distribution. A more advanced enrollment utility will be
+included in the pam_fprint distribution in the near future.
+
+pam_fprint is alpha software and has deficiencies.
+
+See the the homepage for PAM setup instructions and other notes.
+
+Support and development happens on the mailing list:
+http://www.reactivated.net/fprint/wiki/Mailing_list
+
+Enjoy!
+ - Daniel Drake <dsd@gentoo.org>
