@@ -7,10 +7,9 @@ pam_fprint is a PAM module which uses libfprint's fingerprint verification
 functionality to implement a fingerprint-based login system.
 
 Before you can use pam_fprint to login, you must have enrolled at least one
-finger on the device that you wish to use (or a compatible one). Currently
-the easiest way to do this is to use the "enroll" example program found
-in the libfprint distribution. A more advanced enrollment utility will be
-included in the pam_fprint distribution in the near future.
+finger on the device that you wish to use (or a compatible one).
+A program called pam_fprint_enroll is provided that does this for you.
+Run with the --help argument to learn how to enroll different fingers.
 
 pam_fprint is alpha software and has deficiencies.
 

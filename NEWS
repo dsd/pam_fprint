@@ -1,3 +1,10 @@
+This file lists notable changes in each release. For the full history of all
+changes, see ChangeLog.
+
+2007-11-19: v0.2 release
+ * Don't try to serve sessions from remote hosts (Daniel Drake)
+ * Add enrollment application (Vasily Khoruzhick)
+
 2007-11-15: v0.1 release
  * Initial public release
 

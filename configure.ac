@@ -1,4 +1,4 @@
-AC_INIT([pam_fprint], [0.1])
+AC_INIT([pam_fprint], [0.2])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/pam_fprint.c])
 
