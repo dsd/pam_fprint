@@ -215,12 +215,19 @@ static int do_auth(pam_handle_t *pamh)
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc,
 	const char **argv)
 {
+	const char *rhost = NULL;
 	FILE *fd;
 	char buf[5];
 	const char *username;
 	char *homedir;
 	struct passwd *passwd;
 	int r;
+
+	pam_get_item(pamh, PAM_RHOST, (const void **)(const void*) &rhost);
+	if (rhost != NULL && strlen(rhost) > 0) {
+		/* remote login (e.g. over SSH) */
+		return PAM_AUTHINFO_UNAVAIL;
+	}
 
 	r = pam_get_user(pamh, &username, NULL);
 	if (r != PAM_SUCCESS)
