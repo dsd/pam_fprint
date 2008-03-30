@@ -70,6 +70,7 @@ static int send_err_msg(pam_handle_t *pamh, char *msg)
 	return pc->conv(1, &msgp, &resp, pc->appdata_ptr);
 }
 
+
 static const char *fingerstr(enum fp_finger finger)
 {
 	const char *names[] = {
@@ -89,41 +90,91 @@ static const char *fingerstr(enum fp_finger finger)
 	return names[finger];
 }
 
-static int find_dev_and_print(struct fp_dscv_dev **ddevs,
-	struct fp_dscv_print **prints, struct fp_dscv_dev **_ddev,
-	struct fp_dscv_print **_print)
-{
-	int i = 0;
-	struct fp_dscv_print *print;
-	struct fp_dscv_dev *ddev;
 
+static struct fp_print_data **find_dev_and_prints(struct fp_dscv_dev **ddevs,
+	struct fp_dscv_print **prints, struct fp_dscv_dev **_ddev, enum fp_finger **fingers)
+{
+	int i = 0, j = 0, err;
+	struct fp_dscv_print *print;
+	struct fp_dscv_dev *ddev = NULL;
+	uint16_t driver_id, driver_id_cur;
+	size_t prints_count = 0;
+	struct fp_print_data **gallery;
+
+	/* TODO: add device selection */
 	while (print = prints[i++]) {
-		ddev = fp_dscv_dev_for_dscv_print(ddevs, print);
-		if (ddev) {
+		if (!ddev) {
+			ddev = fp_dscv_dev_for_dscv_print(ddevs, print);
+			driver_id = fp_dscv_print_get_driver_id(print);
 			*_ddev = ddev;
-			*_print = print;
-			return 0;
+		}
+		if (ddev)
+		{
+		    driver_id_cur = fp_dscv_print_get_driver_id(print);
+		    if (driver_id_cur == driver_id) {
+			    prints_count++;
+		    }
 		}
 	}
-	return 1;
+	
+	if (prints_count == 0) {
+	    return NULL;
+	}
+	
+	gallery = malloc(sizeof(*gallery) * (prints_count + 1));
+	if (gallery == NULL) {
+	    return NULL;
+	}
+	gallery[prints_count] = NULL;
+	*fingers = malloc(sizeof(*fingers) * (prints_count));
+	if (*fingers == NULL) {
+	    free(gallery);
+	    return NULL;
+	}
+	
+	i = 0, j = 0;
+	while (print = prints[i++]) {
+		driver_id_cur = fp_dscv_print_get_driver_id(print);
+		if (driver_id_cur == driver_id) {
+			err = fp_print_data_from_dscv_print(print, & (gallery[j]));
+			if (err != 0) {
+			    gallery[j] = NULL;
+			    break;
+			}
+			(*fingers)[j] = fp_dscv_print_get_finger(print);
+			j++;
+		}
+	}
+	
+	return gallery;
 }
 
-static int do_verify(pam_handle_t *pamh, struct fp_dev *dev,
-	struct fp_print_data *data, enum fp_finger finger)
+static int do_identify(pam_handle_t *pamh, struct fp_dev *dev,
+	struct fp_print_data **gallery, enum fp_finger *fingers)
 {
 	int max_tries = 5;
+	size_t offset;
 	const char *driver_name = fp_driver_get_full_name(fp_dev_get_driver(dev));
-	const char *fstr = fingerstr(finger);
-
+	const char *fstr = fingerstr(fingers[0]);
+	
 	do {
 		int r;
 		char msg[128];
 
-		snprintf(msg, sizeof(msg), "Scan %s finger on %s", fstr, driver_name);
-		msg[sizeof(msg) - 1] = 0;
-		send_info_msg(pamh, msg);
-
-		r = fp_verify_finger(dev, data);
+		
+		if (fp_dev_supports_identification(dev)) {
+		    snprintf(msg, sizeof(msg), "Scan finger on %s", driver_name);
+		    msg[sizeof(msg) - 1] = 0;
+		    send_info_msg(pamh, msg);
+		    r = fp_identify_finger(dev, gallery, &offset);
+		    
+		}
+		else {
+		    snprintf(msg, sizeof(msg), "Scan %s finger on %s", fstr, driver_name);
+		    msg[sizeof(msg) - 1] = 0;
+		    send_info_msg(pamh, msg);
+		    r = fp_verify_finger(dev, gallery[0]);
+		}
 		if (r < 0) {
 			snprintf(msg, sizeof(msg), "Fingerprint verification error %d", r);
 			msg[sizeof(msg) - 1] = 0;
@@ -164,8 +215,8 @@ static int do_auth(pam_handle_t *pamh)
 	struct fp_dscv_dev *ddev;
 	struct fp_dscv_print *print;
 	struct fp_dev *dev;
-	struct fp_print_data *data;
-	enum fp_finger finger;
+	struct fp_print_data **gallery, **gallery_iter;
+	enum fp_finger *fingers;
 
 	r = fp_init();
 	if (r < 0)
@@ -180,9 +231,9 @@ static int do_auth(pam_handle_t *pamh)
 		fp_dscv_devs_free(ddevs);
 		return PAM_AUTHINFO_UNAVAIL;
 	}
-
-	r = find_dev_and_print(ddevs, prints, &ddev, &print);
-	if (r) {
+	
+	gallery = find_dev_and_prints(ddevs, prints, &ddev, &fingers);
+	if (!gallery) {
 		fp_dscv_prints_free(prints);
 		fp_dscv_devs_free(ddevs);
 		send_info_msg(pamh, "Could not locate any suitable fingerprints "
@@ -192,22 +243,28 @@ static int do_auth(pam_handle_t *pamh)
 
 	dev = fp_dev_open(ddev);
 	fp_dscv_devs_free(ddevs);
-	if (!dev) {
-		fp_dscv_prints_free(prints);
-		return PAM_AUTHINFO_UNAVAIL;
-	}
-
-	finger = fp_dscv_print_get_finger(print);
-
-	r = fp_print_data_from_dscv_print(print, &data);
 	fp_dscv_prints_free(prints);
-	if (r) {
-		fp_dev_close(dev);
+	if (!dev) {
+		gallery_iter = gallery;
+		while (*gallery_iter) {
+		    fp_print_data_free(*gallery_iter);
+		    gallery_iter++;
+		}
+		free(gallery);
+		free(fingers);	
 		return PAM_AUTHINFO_UNAVAIL;
 	}
 
-	r = do_verify(pamh, dev, data, finger);
-	fp_print_data_free(data);
+	r = do_identify(pamh, dev, gallery, fingers);
+	
+	gallery_iter = gallery;
+	while (*gallery_iter)
+	{
+	    fp_print_data_free(*gallery_iter);
+	    gallery_iter++;
+	}
+	free(gallery);
+	free(fingers);
 	fp_dev_close(dev);
 	return r;
 }
