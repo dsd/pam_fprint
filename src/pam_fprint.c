@@ -18,6 +18,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <pwd.h>
@@ -41,10 +42,10 @@ static int send_info_msg(pam_handle_t *pamh, char *msg)
 
     r = pam_get_item(pamh, PAM_CONV, (const void **) &pc);
 	if (r != PAM_SUCCESS)
-		return;
+		return PAM_CONV_ERR;
 
 	if (!pc || !pc->conv)
-		return;
+		return PAM_CONV_ERR;
 
 	return pc->conv(1, &msgp, &resp, pc->appdata_ptr);
 }
@@ -62,10 +63,10 @@ static int send_err_msg(pam_handle_t *pamh, char *msg)
 
     r = pam_get_item(pamh, PAM_CONV, (const void **) &pc);
 	if (r != PAM_SUCCESS)
-		return;
+		return PAM_CONV_ERR;
 
 	if (!pc || !pc->conv)
-		return;
+		return PAM_CONV_ERR;
 
 	return pc->conv(1, &msgp, &resp, pc->appdata_ptr);
 }
